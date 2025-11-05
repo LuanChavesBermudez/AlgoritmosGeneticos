@@ -1,0 +1,22 @@
+body {
+    background-color: black;
+}
+
+.canvas-container {
+    margin: auto;
+    text-align: center;
+}
+
+canvas {
+    position: absolute;
+    margin: auto;
+    padding: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border: 20px;
+    border-radius: 8px;
+    border-style: ridge;
+    border-color: silver;
+}
