@@ -15,8 +15,11 @@ canvas {
     bottom: 0;
     left: 0;
     right: 0;
-    border: 20px;
+    border-top: 20px;
+    border-left: 20px;
+    border-right: 20px;
     border-radius: 8px;
     border-style: ridge;
     border-color: silver;
+    background-image: url("./background.png");
 }
