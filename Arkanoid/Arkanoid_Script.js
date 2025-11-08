@@ -1,4 +1,5 @@
 let gameInstance;
+let lastFrameTime = 0;
 const keyboardEvents = {};
 
 document.addEventListener("keydown", (event) => {
@@ -15,7 +16,7 @@ class Paddle {
         this.height = 20;
         this.posX = areaWidth/2 - this.width/2;
         this.posY = areaHeight - 50;
-        this.moveSpeed = 8;
+        this.moveSpeed = 300;
     }
 
     render(context) {
@@ -38,37 +39,37 @@ class Paddle {
         context.closePath();
     }
 
-    moveLeft(){
+    moveLeft(dt){
         if (this.posX == 0) {
             return;
         }
 
-        if (this.posX - this.moveSpeed < 0) {
+        if (this.posX - this.moveSpeed * dt < 0) {
             this.posX = 0;
         } else {
-            this.posX -= this.moveSpeed;
+            this.posX -= this.moveSpeed * dt;
         }
     }
 
-    moveRight(areaWidth){
+    moveRight(areaWidth, dt){
         if (this.posX == areaWidth - this.width) {
             return;
         }
-        if (this.posX + this.moveSpeed >= areaWidth - this.width){
+        if (this.posX + this.moveSpeed * dt >= areaWidth - this.width){
             this.posX = areaWidth - this.width;
         } else {
-            this.posX += this.moveSpeed;
+            this.posX += this.moveSpeed * dt;
         }
     }
 }
 
 class Ball {
     constructor(areaWidth, areaHeight) {
-        this.radius = 6;
+        this.radius = 5;
         this.posX = areaWidth / 2 - this.radius;
-        this.posY = areaHeight / 2;
-        this.horizontalSpeed = -6;
-        this.verticalSpeed = -6; 
+        this.posY = areaHeight / 2 - this.radius;
+        this.horizontalSpeed = -200;
+        this.verticalSpeed = -200;
     }
 
     /*
@@ -82,9 +83,11 @@ class Ball {
     */
 
     render(context) {
+        const xCenterCoord = this.posX + this.radius;
+        const yCenterCoord = this.posY + this.radius;
         context.fillStyle = 'white';
         context.beginPath();
-        context.arc(this.posX, this.posY, this.radius, 0, Math.PI * 2);
+        context.arc(xCenterCoord, yCenterCoord, this.radius, 0, Math.PI * 2);
         context.fill();
         context.strokeStyle = 'black';
         context.lineWidth = 1;
@@ -92,27 +95,27 @@ class Ball {
         context.closePath();
     }
 
-    move(areaWidth) {
-        if (this.posX + this.horizontalSpeed > areaWidth - this.radius) {
-            this.posX = areaWidth - this.radius;
+    move(areaWidth, dt) {
+        if (this.posX + this.horizontalSpeed * dt > areaWidth - (this.radius * 2)) {
+            this.posX = areaWidth - (this.radius * 2);
             this.horizontalBounce();
             return;
         }
 
-        if (this.posX + this.horizontalSpeed < 0) {
+        if (this.posX + this.horizontalSpeed * dt < 0) {
             this.posX = 0;
             this.horizontalBounce();
             return;
         }
 
-        if (this.posY + this.verticalSpeed < 0) {
+        if (this.posY + this.verticalSpeed * dt < 0) {
             this.posY = 0;
             this.verticalBounce();
             return;
         }
 
-        this.posX += this.horizontalSpeed;
-        this.posY += this.verticalSpeed;
+        this.posX += this.horizontalSpeed * dt;
+        this.posY += this.verticalSpeed * dt;
     }
 
     horizontalBounce() {
@@ -165,25 +168,31 @@ class Game {
 
     initializeLogic() {
         this.score = 0;
+        this.brickCount = 0;
         this.isPaused = false;
         this.context.clearRect(0, 0, this.areaWidth, this.areaHeight);
         this.paddle = new Paddle(this.areaWidth, this.areaHeight);
         this.ball = new Ball(this.areaWidth, this.areaHeight);
-        this.brickMatrix = [];
+        this.brickArray = [];
     }
     
     gameLoop(){
+        const currentFrameTime = performance.now();
+        const deltaTime = (currentFrameTime - lastFrameTime) / 1000;
+        lastFrameTime = currentFrameTime;
+
         this.context.clearRect(0, 0, this.areaWidth, this.areaHeight);
         this.score += 1;
 
         if (keyboardEvents["ArrowLeft"]) {
-            this.movePaddleLeft();
+            this.movePaddleLeft(deltaTime);
         }
         if (keyboardEvents["ArrowRight"]) {
-            this.movePaddleRight();
+            this.movePaddleRight(deltaTime);
         }
+
+        this.ball.move(this.areaWidth, deltaTime);
         this.checkAllCollisions();
-        this.ball.move(this.areaWidth);
 
         this.renderObjects();
         if (!this.isPaused) {
@@ -194,19 +203,17 @@ class Game {
     renderObjects() {
         this.paddle.render(this.context);
         this.ball.render(this.context);
-        for (const row of this.brickMatrix){
-            for (const brick of row) {
-                brick.render(this.context);
-            }
+        for (const brick of this.brickArray) {
+            brick.render(this.context);
         }
     }
 
     checkAllCollisions(){
         this.checkPaddleCollision(this.ball, this.paddle);
-        for (const row of this.brickMatrix){
-            for (const brick of row) {
-                if (brick.status == BrickStatus.ACTIVE) {
-                    this.checkBrickCollision(this.ball, brick);
+        for (const brick of this.brickArray){
+            if (brick.status == BrickStatus.ACTIVE) {
+                if (this.checkBrickCollision(this.ball, brick)){
+                    break;
                 }
             }
         }
@@ -231,12 +238,18 @@ class Game {
         this.initializeLogic();
     }
 
-    movePaddleLeft() {
-        this.paddle.moveLeft();
+    movePaddleLeft(dt) {
+        this.paddle.moveLeft(dt);
     }
 
-    movePaddleRight() {
-        this.paddle.moveRight(this.gameArea.width);
+    movePaddleRight(dt) {
+        this.paddle.moveRight(this.areaWidth, dt);
+    }
+
+    destroyBrick(brick){
+        brick.destroy();
+        this.brickCount -= 1;
+        this.score += 100;
     }
 
     buildLevel1() {
@@ -248,8 +261,7 @@ class Game {
         const levelMargin = (this.gameArea.height / 2) - (brickHeight * 5);
 
         // Genera la matriz
-        for (let i = 0; i < 4; i++) {
-            this.brickMatrix[i] = [];
+        for (let i = 0; i < 4; i++) {;
             for (let j = 0; j < 12; j++) {
                 let colorStr = "white";
                 
@@ -266,7 +278,8 @@ class Game {
                     default:
                         colorStr = "green";
                 }
-                this.brickMatrix[i][j] = new Brick(brickWidth, brickHeight, brickWidth * j, levelMargin - (brickHeight * i), colorStr);
+                this.brickArray.push(new Brick(brickWidth, brickHeight, brickWidth * j, levelMargin - (brickHeight * i), colorStr));
+                this.brickCount += 1;
             }
         }
     }
@@ -278,7 +291,7 @@ class Game {
             ball.posY < brick.posY + brick.height &&
             ball.posY + (ball.radius * 2) > brick.posY) {
 
-            brick.destroy();
+            this.destroyBrick(brick);
 
             // Coordenadas de los centros de la bola y ladrillo
             const ballHorizontalCenter = ball.posX + ball.radius;
@@ -310,8 +323,10 @@ class Game {
                 yOverlapLength = -yMinDistance - yDifference;
             }
 
+            // por si choca exacto en la esquina
+            const bias = 0.1;
             // Rebota en el eje con menos overlap por convencion
-            if (Math.abs(xOverlapLength) < Math.abs(yOverlapLength)) {
+            if (Math.abs(xOverlapLength) + bias < Math.abs(yOverlapLength)) {
                 ball.horizontalBounce();
                 // reboto a la izq del bloque
                 if (xOverlapLength > 0) {
@@ -320,6 +335,7 @@ class Game {
                 } else {
                     ball.posX += xOverlapLength;
                 }
+                return true;
             } else {
                 ball.verticalBounce();
                 // Reboto arriba
@@ -329,19 +345,79 @@ class Game {
                 } else {
                     ball.posY += yOverlapLength;
                 }
+                return true;
             }
         }
-        return;
+        return false;
     }
 
     checkPaddleCollision(ball, paddle) {
-        const paddleHorizontalCenter = paddle.posX + paddle.width / 2;
+        if (ball.posX < paddle.posX + paddle.width &&
+            ball.posX + (ball.radius * 2) > paddle.posX &&
+            ball.posY < paddle.posY + paddle.height &&
+            ball.posY + (ball.radius * 2) > paddle.posY) {
+        
+            const ballHorizontalCenter = ball.posX + ball.radius;
+            const ballVerticalCenter = ball.posY + ball.radius;
+            const paddleHorizontalCenter = paddle.posX + (paddle.width / 2);
+            const paddleVerticalCenter = paddle.posY + (paddle.height / 2);
+
+            // Diferencia de distancias entre centros de la bola y ladrillo
+            const xDifference = ballHorizontalCenter - paddleHorizontalCenter;
+            const yDifference = ballVerticalCenter - paddleVerticalCenter;
+
+            // Minima distancia posible sin overlap entre centros
+            const xMinDistance = ball.radius + (paddle.width / 2);
+            const yMinDistance = ball.radius + (paddle.height / 2);
+
+            // Distancia o profundidad del overlap
+            let xOverlapLength;
+            // Bola a la derecha
+            if (xDifference > 0) {
+                xOverlapLength = xMinDistance - xDifference;
+            } else {
+                xOverlapLength = -xMinDistance - xDifference;
+            }
+
+            let yOverlapLength;
+            if (yDifference > 0) {
+                yOverlapLength = yMinDistance - yDifference;
+            } else {
+                yOverlapLength = -yMinDistance - yDifference;
+            }
+
+            // Rebota en el eje con menos overlap por convencion
+            const bias = 0.1;
+            if (Math.abs(xOverlapLength) + bias < Math.abs(yOverlapLength)) {
+                ball.horizontalBounce();
+                // reboto a la izq de la barra
+                if (xOverlapLength > 0) {
+                    ball.posX -= xOverlapLength;
+                // reboto a la der de la barra
+                } else {
+                    ball.posX += xOverlapLength;
+                }
+                return true;
+            } else {
+                ball.verticalBounce();
+                // Reboto arriba
+                if (yOverlapLength > 0) {
+                    ball.posY -= yOverlapLength;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    startLevel1(){
+        this.buildLevel1();
+        this.gameLoop();
     }
 }
 
 window.onload = function(){
     const canvas = document.getElementById("ArkanoidCanvas");
     gameInstance = new Game(canvas);
-    gameInstance.buildLevel1();
-    gameInstance.gameLoop();
+    gameInstance.startLevel1();
 }
