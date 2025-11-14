@@ -3,12 +3,12 @@ body {
 }
 
 .canvas-container {
-    margin: auto;
-    text-align: center;
+    justify-content: space-around;
+    display: flex;
+    align-items: center;
 }
 
 canvas {
-    position: absolute;
     margin: auto;
     padding: 0;
     top: 0;
@@ -22,4 +22,15 @@ canvas {
     border-style: ridge;
     border-color: silver;
     background-image: url("./background.png");
+}
+
+.score-box{
+    height: 100px;
+    width: 100px;
+    background-color: blue;
+    color: white;
+    border-style: ridge;
+    border: 20px;
+    border-color: silver;
+    font-size: 20;
 }

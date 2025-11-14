@@ -5,10 +5,15 @@ const keyboardEvents = {};
 document.addEventListener("keydown", (event) => {
     keyboardEvents[event.code] = true;
 });
-
 document.addEventListener("keyup", (event) => {
     keyboardEvents[event.code] = false;
 });
+
+const paddleDirection = {
+    NEUTRAL: 0,
+    LEFT: -1,
+    RIGHT: 1
+}
 
 class Paddle {
     constructor(areaWidth, areaHeight){
@@ -17,6 +22,7 @@ class Paddle {
         this.posX = areaWidth/2 - this.width/2;
         this.posY = areaHeight - 50;
         this.moveSpeed = 300;
+        this.direction = paddleDirection.NEUTRAL;
     }
 
     render(context) {
@@ -39,28 +45,23 @@ class Paddle {
         context.closePath();
     }
 
-    moveLeft(dt){
-        if (this.posX == 0) {
-            return;
-        }
-
-        if (this.posX - this.moveSpeed * dt < 0) {
+    move(areaWidth, dt) {
+        const movement = this.moveSpeed * this.direction;
+        if (this.posX + movement * dt < 0) {
             this.posX = 0;
-        } else {
-            this.posX -= this.moveSpeed * dt;
-        }
-    }
-
-    moveRight(areaWidth, dt){
-        if (this.posX == areaWidth - this.width) {
             return;
         }
-        if (this.posX + this.moveSpeed * dt >= areaWidth - this.width){
+        if (this.posX + movement * dt >= areaWidth - this.width){
             this.posX = areaWidth - this.width;
-        } else {
-            this.posX += this.moveSpeed * dt;
+            return;
         }
+        this.posX += movement * dt;
     }
+}
+
+const BallStatus = {
+    ACTIVE: true,
+    DESTROYED: false
 }
 
 class Ball {
@@ -68,8 +69,9 @@ class Ball {
         this.radius = 5;
         this.posX = areaWidth / 2 - this.radius;
         this.posY = areaHeight / 2 - this.radius;
-        this.horizontalSpeed = -200;
-        this.verticalSpeed = -200;
+        this.horizontalSpeed = 0;
+        this.verticalSpeed = 200;
+        this.status = BallStatus.ACTIVE;
     }
 
     /*
@@ -83,16 +85,18 @@ class Ball {
     */
 
     render(context) {
-        const xCenterCoord = this.posX + this.radius;
-        const yCenterCoord = this.posY + this.radius;
-        context.fillStyle = 'white';
-        context.beginPath();
-        context.arc(xCenterCoord, yCenterCoord, this.radius, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = 'black';
-        context.lineWidth = 1;
-        context.stroke();
-        context.closePath();
+        if (this.status) {
+            const xCenterCoord = this.posX + this.radius;
+            const yCenterCoord = this.posY + this.radius;
+            context.fillStyle = 'white';
+            context.beginPath();
+            context.arc(xCenterCoord, yCenterCoord, this.radius, 0, Math.PI * 2);
+            context.fill();
+            context.strokeStyle = 'black';
+            context.lineWidth = 1;
+            context.stroke();
+            context.closePath();
+        }
     }
 
     move(areaWidth, dt) {
@@ -125,6 +129,14 @@ class Ball {
     verticalBounce() {
         this.verticalSpeed *= -1;
     }
+
+    isActive(){
+        return this.status;
+    }
+
+    destroy(){
+        this.status = BallStatus.DESTROYED;
+    }
 }
 
 const BrickStatus = {
@@ -155,7 +167,66 @@ class Brick {
     destroy() {
         this.status = BrickStatus.DESTROYED;
     }
+
+    isActive(){
+        return this.status;
+    }
 }
+
+const PowerUpStatus = {
+    ACTIVE: true,
+    DESTROYED: false
+}
+
+const PowerUpType = {
+    TRIPLE: 1
+}
+
+class PowerUp {
+    constructor(type, posX, posY) {
+        this.width = 20;
+        this.height = 10;
+        this.posX = posX;
+        this.posY = posY;
+        this.type = type;
+        this.status = PowerUpStatus.ACTIVE;
+        this.fallSpeed = 200;
+    }
+
+    render(context) {
+        if (this.status) {
+            const color = this.pickColor();
+            context.fillStyle = color;
+            context.strokeStyle = 'yellow';
+            context.lineWidth = 1;
+            context.beginPath();
+            context.roundRect(this.posX, this.posY, this.width, this.height, 6);
+            context.stroke();
+            context.fill()    
+        }
+    }
+
+    pickColor(){
+        switch (this.type) {
+            case PowerUpType.TRIPLE:
+                color = 'pink';
+                break;
+            default:
+                color = 'white';
+                break;
+        }
+    }
+
+    move(areaHeight, dt) {
+        return;
+    }
+
+    destroy(){
+        this.status = PowerUpStatus.DESTROYED;
+    }
+}
+
+
 
 class Game {
     constructor(gameArea) {
@@ -167,13 +238,17 @@ class Game {
     }
 
     initializeLogic() {
-        this.score = 0;
-        this.brickCount = 0;
+        this.isRunning = true;
         this.isPaused = false;
-        this.context.clearRect(0, 0, this.areaWidth, this.areaHeight);
-        this.paddle = new Paddle(this.areaWidth, this.areaHeight);
-        this.ball = new Ball(this.areaWidth, this.areaHeight);
+        this.score = 0;
         this.brickArray = [];
+        this.brickCount = 0;
+        this.ballArray = [];
+        this.ballArray.push(new Ball(this.areaWidth, this.areaHeight))
+        this.ballCount = 1;
+        this.paddle = new Paddle(this.areaWidth, this.areaHeight);
+        
+        this.context.clearRect(0, 0, this.areaWidth, this.areaHeight); 
     }
     
     gameLoop(){
@@ -181,75 +256,79 @@ class Game {
         const deltaTime = (currentFrameTime - lastFrameTime) / 1000;
         lastFrameTime = currentFrameTime;
 
-        this.context.clearRect(0, 0, this.areaWidth, this.areaHeight);
-        this.score += 1;
+        let movementDirection = paddleDirection.NEUTRAL;
 
         if (keyboardEvents["ArrowLeft"]) {
-            this.movePaddleLeft(deltaTime);
+            movementDirection = paddleDirection.LEFT;
         }
         if (keyboardEvents["ArrowRight"]) {
-            this.movePaddleRight(deltaTime);
+            movementDirection = paddleDirection.RIGHT;
         }
 
-        this.ball.move(this.areaWidth, deltaTime);
-        this.checkAllCollisions();
-
-        this.renderObjects();
-        if (!this.isPaused) {
+        this.progress(movementDirection, deltaTime);
+        this.render();
+        if (this.isRunning) {
             requestAnimationFrame(this.gameLoop.bind(this));
         }  
     }
 
-    renderObjects() {
+    progress(paddleDirection, dt){
+        this.paddle.direction = paddleDirection;
+        this.paddle.move(this.areaWidth, dt);
+        this.brickBroken = false;
+        this.substepMoveAndCollide(dt);
+
+        if (this.ballCount == 0) {
+            this.isRunning = false;
+            return this.score;
+        }
+
+        if(this.brickCount == 0) {
+            this.score += 1000;
+            this.isRunning = false;
+            return this.score;
+        }
+    }
+
+
+    render() {
+        this.context.clearRect(0, 0, this.areaWidth, this.areaHeight);
         this.paddle.render(this.context);
-        this.ball.render(this.context);
+        for (const ball of this.ballArray) {
+            ball.render(this.context);
+        }
         for (const brick of this.brickArray) {
             brick.render(this.context);
         }
     }
 
-    checkAllCollisions(){
-        this.checkPaddleCollision(this.ball, this.paddle);
-        for (const brick of this.brickArray){
-            if (brick.status == BrickStatus.ACTIVE) {
-                if (this.checkBrickCollision(this.ball, brick)){
-                    break;
+    substepMoveAndCollide(dt){
+        if (this.brickBroken) return;
+        const substeps = 3;
+        //para cada bola
+        for (let ball of this.ballArray){
+            //si está activa
+            if (ball.isActive()) {
+                if (ball.posY > this.areaHeight) {
+                    this.ballDestroyed(ball);
+                    continue;
+                }
+                //en base a los substeps
+                for (let step = 0; step < substeps; step++) {
+                    //checkea colisiones y las resuelve antes de mover la bola
+                    for (let brick of this.brickArray){
+                        if (brick.isActive()) {
+                            if (this.checkBrickCollision(ball, brick)){
+                                this.brickBroken = true;
+                                return;
+                            }
+                        }
+                    }
+                    ball.move(this.areaWidth, dt / substeps);
+                    this.checkPaddleCollision(ball, this.paddle);
                 }
             }
         }
-    }
-
-    togglePause(){
-        this.isPaused = !this.isPaused;
-        if (this.isPaused) {
-            cancelAnimationFrame(this.gameLoop);
-        } else {
-            this.gameLoop();
-        }
-    }
-
-    stop(){
-        this.isPaused = true;
-        cancelAnimationFrame(this.gameLoop);
-    }
-
-    restart() {
-        this.stop();
-        this.initializeLogic();
-    }
-
-    movePaddleLeft(dt) {
-        this.paddle.moveLeft(dt);
-    }
-
-    movePaddleRight(dt) {
-        this.paddle.moveRight(this.areaWidth, dt);
-    }
-
-    destroyBrick(brick){
-        brick.destroy();
-        this.brickCount -= 1;
-        this.score += 100;
     }
 
     buildLevel1() {
@@ -258,7 +337,7 @@ class Game {
         const brickHeight = 30;
 
         // Que tan arriba empiezan a spawnear bloques
-        const levelMargin = (this.gameArea.height / 2) - (brickHeight * 5);
+        const levelMargin = brickHeight * 6;
 
         // Genera la matriz
         for (let i = 0; i < 4; i++) {;
@@ -279,9 +358,21 @@ class Game {
                         colorStr = "green";
                 }
                 this.brickArray.push(new Brick(brickWidth, brickHeight, brickWidth * j, levelMargin - (brickHeight * i), colorStr));
-                this.brickCount += 1;
             }
         }
+        this.brickCount = this.brickArray.length;
+    }
+
+    ballDestroyed(ball){
+        ball.destroy();
+        this.ballCount -= 1;
+        this.score -= 500;    
+    }
+
+    brickDestroyed(brick) {
+        brick.destroy();
+        this.brickCount -= 1;
+        this.score += 100; 
     }
 
     checkBrickCollision(ball, brick) {
@@ -290,8 +381,6 @@ class Game {
             ball.posX + (ball.radius * 2) > brick.posX &&
             ball.posY < brick.posY + brick.height &&
             ball.posY + (ball.radius * 2) > brick.posY) {
-
-            this.destroyBrick(brick);
 
             // Coordenadas de los centros de la bola y ladrillo
             const ballHorizontalCenter = ball.posX + ball.radius;
@@ -328,25 +417,27 @@ class Game {
             // Rebota en el eje con menos overlap por convencion
             if (Math.abs(xOverlapLength) + bias < Math.abs(yOverlapLength)) {
                 ball.horizontalBounce();
+                const spacing = 5;
                 // reboto a la izq del bloque
                 if (xOverlapLength > 0) {
-                    ball.posX -= xOverlapLength;
+                    ball.posX -= xOverlapLength - spacing;
                 // reboto a la der del bloque
                 } else {
-                    ball.posX += xOverlapLength;
+                    ball.posX += xOverlapLength + spacing;
                 }
-                return true;
             } else {
                 ball.verticalBounce();
+                const spacing = 10;
                 // Reboto arriba
                 if (yOverlapLength > 0) {
-                    ball.posY -= yOverlapLength;
+                    ball.posY -= yOverlapLength - spacing;
                 // Reboto abajo
                 } else {
-                    ball.posY += yOverlapLength;
+                    ball.posY += yOverlapLength + spacing;
                 }
-                return true;
             }
+            this.brickDestroyed(brick);
+            return true;
         }
         return false;
     }
@@ -355,7 +446,8 @@ class Game {
         if (ball.posX < paddle.posX + paddle.width &&
             ball.posX + (ball.radius * 2) > paddle.posX &&
             ball.posY < paddle.posY + paddle.height &&
-            ball.posY + (ball.radius * 2) > paddle.posY) {
+            ball.posY + (ball.radius * 2) > paddle.posY &&
+            ball.verticalSpeed > 0) {
         
             const ballHorizontalCenter = ball.posX + ball.radius;
             const ballVerticalCenter = ball.posY + ball.radius;
@@ -397,15 +489,20 @@ class Game {
                 } else {
                     ball.posX += xOverlapLength;
                 }
-                return true;
+                this.bouncePhysics(ball, paddle, xDifference);
             } else {
                 ball.verticalBounce();
                 // Reboto arriba
                 if (yOverlapLength > 0) {
                     ball.posY -= yOverlapLength;
+                // Para evitar que la bola se quede pegada dentro
+                } else {
+                    ball.posY += yOverlapLength;
                 }
-                return true;
+
+                this.bouncePhysics(ball, paddle);
             }
+            return true;
         }
         return false;
     }
@@ -413,6 +510,41 @@ class Game {
     startLevel1(){
         this.buildLevel1();
         this.gameLoop();
+    }
+
+    bouncePhysics(ball, paddle){
+        const maxSpeed = 400;
+        let paddleInfluence = paddle.moveSpeed * paddle.direction * 0.7;
+
+        if (paddle.posX == 0 || paddle.posX + paddle.width == this.areaWidth) {
+            paddleInfluence = 0;
+        }
+
+        let relativeDistanceRatio = ((ball.posX + ball.radius) - paddle.posX) / paddle.width;
+        relativeDistanceRatio = Math.max(0, Math.min(1, relativeDistanceRatio));     
+        if(paddle.direction == paddleDirection.LEFT) {
+            relativeDistanceRatio = 1 - relativeDistanceRatio;
+        }
+        
+        let newHorizontalSpeed = ball.horizontalSpeed + paddleInfluence * relativeDistanceRatio;
+        newHorizontalSpeed = Math.max(-maxSpeed, Math.min(maxSpeed, newHorizontalSpeed));
+        ball.horizontalSpeed = newHorizontalSpeed;
+    }
+
+    gameState() {
+        let ballCoords = [];
+        let ballMovement = [];
+        for (let ball of this.ballArray) {
+            ballCoords.push([ball.posX, ball.posY]);
+            ballMovement.push([ball.horizontalSpeed, ball.verticalSpeed]);
+        }
+        const state = {
+            paddleXCoord: this.paddle.posX,
+            paddleYCoord: this.paddle.posY,
+            ballsCoords: ballCoords,
+            ballsVectors: ballMovement
+        }
+        return state;
     }
 }
 
