@@ -1,4 +1,3 @@
-let gameInstance;
 let lastFrameTime = 0;
 const keyboardEvents = {};
 
@@ -65,24 +64,14 @@ const BallStatus = {
 }
 
 class Ball {
-    constructor(areaWidth, areaHeight) {
+    constructor(posX, posY) {
         this.radius = 5;
-        this.posX = areaWidth / 2 - this.radius;
-        this.posY = areaHeight / 2 - this.radius;
+        this.posX = posX - this.radius;
+        this.posY = posY - this.radius;
         this.horizontalSpeed = 0;
         this.verticalSpeed = 200;
         this.status = BallStatus.ACTIVE;
     }
-
-    /*
-    constructor(posX, posY, horizontalSpeed, verticalSpeed) {
-        this.radius = 10;
-        this.posX = posX;
-        this.posY = posY;
-        this.horizontalSpeed = horizontalSpeed;
-        this.verticalSpeed = verticalSpeed; 
-    }
-    */
 
     render(context) {
         if (this.status) {
@@ -159,7 +148,7 @@ class Brick {
             context.fillStyle = this.colorStr;
             context.fillRect(this.posX, this.posY, this.width, this.height);
             context.strokeStyle = "black";
-            context.lineWidth = 1;
+            context.lineWidth = 2;
             context.strokeRect(this.posX, this.posY, this.width, this.height);
         }
     }
@@ -228,23 +217,23 @@ class PowerUp {
 
 
 
-class Game {
+export class Arkanoid {
     constructor(gameArea) {
         this.gameArea = gameArea;
         this.areaWidth = gameArea.width;
         this.areaHeight = gameArea.height;
         this.context = gameArea.getContext("2d");
-        this.initializeLogic();
+        this.reset();
     }
 
-    initializeLogic() {
+    reset() {
         this.isRunning = true;
         this.isPaused = false;
         this.score = 0;
         this.brickArray = [];
         this.brickCount = 0;
         this.ballArray = [];
-        this.ballArray.push(new Ball(this.areaWidth, this.areaHeight))
+        this.ballArray.push(new Ball(this.areaWidth/2, this.areaHeight/2))
         this.ballCount = 1;
         this.paddle = new Paddle(this.areaWidth, this.areaHeight);
         
@@ -337,25 +326,28 @@ class Game {
         const brickHeight = 30;
 
         // Que tan arriba empiezan a spawnear bloques
-        const levelMargin = brickHeight * 6;
+        const levelMargin = brickHeight * 7;
 
         // Genera la matriz
-        for (let i = 0; i < 4; i++) {;
+        for (let i = 0; i < 5; i++) {;
             for (let j = 0; j < 12; j++) {
-                let colorStr = "white";
+                let colorStr = "#ffffffff";
                 
                 switch (i) {
                     case 0:
-                        colorStr = "skyblue";
+                        colorStr = "#00cc22ff";
                         break;
                     case 1:
-                        colorStr = "red";
+                        colorStr = "#4e34f7ff";
                         break;
                     case 2:
-                        colorStr = "yellow";
+                        colorStr = "#f3e700ff";
+                        break;
+                    case 3:
+                        colorStr = "#e00000ff";
                         break;
                     default:
-                        colorStr = "green";
+                        colorStr = "#999999ff";
                 }
                 this.brickArray.push(new Brick(brickWidth, brickHeight, brickWidth * j, levelMargin - (brickHeight * i), colorStr));
             }
@@ -499,8 +491,7 @@ class Game {
                 } else {
                     ball.posY += yOverlapLength;
                 }
-
-                this.bouncePhysics(ball, paddle);
+                this.bounceOffPaddle(ball, paddle);
             }
             return true;
         }
@@ -512,16 +503,20 @@ class Game {
         this.gameLoop();
     }
 
-    bouncePhysics(ball, paddle){
+    bounceOffPaddle(ball, paddle){
+        this.score += 10;
         const maxSpeed = 400;
         let paddleInfluence = paddle.moveSpeed * paddle.direction * 0.7;
 
+        //Para que no hayan fisicas si se mueve constantemente contra la pared
         if (paddle.posX == 0 || paddle.posX + paddle.width == this.areaWidth) {
             paddleInfluence = 0;
         }
 
+        //Factor de fuerza de que tan cerca del borde del paddle está la bola
         let relativeDistanceRatio = ((ball.posX + ball.radius) - paddle.posX) / paddle.width;
-        relativeDistanceRatio = Math.max(0, Math.min(1, relativeDistanceRatio));     
+        relativeDistanceRatio = Math.max(0, Math.min(1, relativeDistanceRatio));
+        
         if(paddle.direction == paddleDirection.LEFT) {
             relativeDistanceRatio = 1 - relativeDistanceRatio;
         }
@@ -531,25 +526,25 @@ class Game {
         ball.horizontalSpeed = newHorizontalSpeed;
     }
 
-    gameState() {
-        let ballCoords = [];
-        let ballMovement = [];
+    getState() {
+        let ballState = [];
         for (let ball of this.ballArray) {
-            ballCoords.push([ball.posX, ball.posY]);
-            ballMovement.push([ball.horizontalSpeed, ball.verticalSpeed]);
+            ballState.push({
+                xCoord: ball.posX,
+                yCoord: ball.posY,
+                horSpeed: ball.horizontalSpeed,
+                verSpeed: ball.verticalSpeed
+            });
         }
+
+        const paddleState = {
+            xCoord: this.paddle.posX,
+        };
+        
         const state = {
-            paddleXCoord: this.paddle.posX,
-            paddleYCoord: this.paddle.posY,
-            ballsCoords: ballCoords,
-            ballsVectors: ballMovement
+            BallStates: ballState,
+            PaddleState: paddleState
         }
         return state;
     }
-}
-
-window.onload = function(){
-    const canvas = document.getElementById("ArkanoidCanvas");
-    gameInstance = new Game(canvas);
-    gameInstance.startLevel1();
 }

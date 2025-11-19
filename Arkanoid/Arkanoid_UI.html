@@ -3,10 +3,16 @@
 <head>
     <title>Arkanoid</title>
     <link rel="stylesheet" href="./Arkanoid_Styles.css"/>
-    <script src="Arkanoid_Script.js"></script>
+    <script src="Arkanoid_GeneticPolicy.js"></script>
 </head>
 <body>
-    <div class="canvas-container">
-        <canvas id="ArkanoidCanvas" width = "672" height="768"></canvas>
+    <div class="wrapper">
+        <div class="canvas-container">
+            <canvas id="ArkanoidCanvas" width="672" height="768"></canvas>
+            <div class="score-box">
+                <div>Score:</div>
+                <div id="scoreLabel" class="score-label">50000</div>
+            </div>
+        </div>
     </div>
 </body>

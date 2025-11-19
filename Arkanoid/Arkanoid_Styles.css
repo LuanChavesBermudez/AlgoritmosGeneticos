@@ -1,36 +1,64 @@
 body {
     background-color: black;
-}
-
-.canvas-container {
-    justify-content: space-around;
+    margin: 0;
+    height: 100vh;
     display: flex;
+    justify-content: center;
     align-items: center;
 }
 
+@font-face {
+    font-family: "Iomanoid";
+    src: url("./Fonts/iomanoid\ front.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+.wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.canvas-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 30px;
+}
+
 canvas {
-    margin: auto;
-    padding: 0;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    border-radius: 8px;
     border-top: 20px;
     border-left: 20px;
     border-right: 20px;
-    border-radius: 8px;
     border-style: ridge;
     border-color: silver;
     background-image: url("./background.png");
 }
 
-.score-box{
+.score-box {
     height: 100px;
-    width: 100px;
-    background-color: blue;
-    color: white;
-    border-style: ridge;
+    width: 150px;
+
+    border-radius: 8px;
     border: 20px;
+    border-style: ridge;
     border-color: silver;
-    font-size: 20;
+    
+    color: white;
+
+    font-size: 30px;
+    font-family: "Iomanoid";
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    
+
+    background-image: url("./background.png");
+}
+
+.score-label {
+    color: yellowgreen;
 }
